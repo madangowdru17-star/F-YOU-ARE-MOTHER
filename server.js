@@ -14,13 +14,37 @@ const CONFIG = {
     MASTER_KEY_EXPIRY: '2026-12-31T23:59:59.000000'
 };
 
+// ===== SECURITY: Only allow requests from your app =====
+function isFromApp(req) {
+    const userAgent = req.headers['user-agent'] || '';
+    const referer = req.headers['referer'] || '';
+    const origin = req.headers['origin'] || '';
+    
+    const isAndroid = userAgent.includes('Android') || userAgent.includes('okhttp');
+    const isHexApp = referer.includes('hex.com') || 
+                     origin.includes('hex.com') ||
+                     req.headers['x-app-package'] === 'hex.com';
+    
+    return isAndroid && isHexApp;
+}
+
+// ===== BLOCK BROWSER ACCESS =====
+app.use('/api/*', (req, res, next) => {
+    if (!isFromApp(req)) {
+        return res.status(200).json({ 
+            error: 'Access denied',
+            message: 'This endpoint is only accessible from the HEX PROXY application'
+        });
+    }
+    next();
+});
+
 // ===== APP CALLS THIS TO GET CONFIG =====
 app.get('/api/config', async (req, res) => {
     try {
         const response = await axios.get(CONFIG.PASTEBIN_URL);
         const config = response.data;
         
-        // Add master key from server (hidden from app)
         config.master_key = CONFIG.MASTER_KEY;
         config.master_key_expiry = CONFIG.MASTER_KEY_EXPIRY;
         
